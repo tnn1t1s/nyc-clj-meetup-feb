@@ -16,18 +16,18 @@
 
 
 ;;(definst monotron [freq 440] (sin-osc freq))
-(definst monotron [master 1.0 mute-osc-1 1.0 mute-osc-2 1.0 freq-osc1 440 freq-osc2 880 cutoff 440 rez 1.0] 
-    (* master 
-      (rlpf (+ (* mute-osc-1 (saw freq-osc1)) (* mute-osc-2 (saw freq-osc2))) cutoff rez)))
+(definst monotron [master 1.0 mute-osc-1 1.0 mute-osc-2 1.0 freq-osc1 440 freq-osc2 880 cutoff 440 rez 1.0 gate 1.0] 
+  (let [envelope (env-gen (adsr) :gate gate :action NO-ACTION)]
+    (* master envelope 
+      (rlpf (+ (* mute-osc-1 (saw freq-osc1)) (* mute-osc-2 (saw freq-osc2))) cutoff rez))))
 
 
-
-(defn control-monotron 
+(defn control-monotron-scale 
  [key val] 
  (let [val (scale-range val 0 1 50 1000)]
       (ctl monotron key val)))
 
-(defn control-monotron-no-scale
+(defn control-monotron
  [key val] 
       (ctl monotron key val))
 
@@ -35,22 +35,19 @@
  [key val] 
       (ctl monotron key (- 1.0 val)))
 
-(osc-handle server "/1/fader1" (fn [msg] (control-monotron :freq-osc1 (first (:args msg)))))
-(osc-handle server "/1/fader2" (fn [msg] (control-monotron :freq-osc2 (first (:args msg)))))
-(osc-handle server "/1/fader3" (fn [msg] (control-monotron :cutoff (first (:args msg)))))
+(osc-handle server "/1/fader1" (fn [msg] (control-monotron-scale :freq-osc1 (first (:args msg)))))
+(osc-handle server "/1/fader2" (fn [msg] (control-monotron-scale :freq-osc2 (first (:args msg)))))
+(osc-handle server "/1/fader3" (fn [msg] (control-monotron-scale :cutoff (first (:args msg)))))
 (osc-handle server "/1/fader4" (fn [msg] (control-monotron-flip-it :rez (first (:args msg)))))
-(osc-handle server "/1/fader5" (fn [msg] (control-monotron-no-scale :master (first (:args msg)))))
+(osc-handle server "/1/fader5" (fn [msg] (control-monotron :master (first (:args msg)))))
 
 ;; toggles
-(osc-handle server "/1/toggle1" (fn [msg] (control-monotron-no-scale :mute-osc-1 (first (:args msg)))))
-(osc-handle server "/1/toggle2" (fn [msg] (control-monotron-no-scale :mute-osc-2 (first (:args msg)))))
+(osc-handle server "/1/toggle1" (fn [msg] (control-monotron :mute-osc-1 (first (:args msg)))))
+(osc-handle server "/1/toggle2" (fn [msg] (control-monotron :mute-osc-2 (first (:args msg)))))
+(osc-handle server "/1/toggle3" (fn [msg] (control-monotron :gate (first (:args msg)))))
 
 ;;(monotron)
 ;;(stop)
 
 ;;(osc-listen server (fn [msg] (println msg)) :debug)
 ;;(osc-rm-listener server :debug)
-
-
-
-
