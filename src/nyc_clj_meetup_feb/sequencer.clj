@@ -2,57 +2,25 @@
   (:use overtone.live))
 
 
-;; start an osc server on port 44100
-(def server (osc-server 44100 "osc-clj-meetup"))
-(zero-conf-on)
+; sequencer buffers
+;; this one will keep the beats
+(defonce buf-0 (buffer 8))
+;; this will keep the frequency
+(defonce buf-1 (buffer 8))
 
-; (osc-listen server (fn [msg] (println msg)) :debug)
-; (osc-rm-listener server :debug)
-;
-;{:src-port 49492, :src-host new-host.home, :path /2/toggle1, :type-tag f, :args (0.0)}
-;{:src-port 49492, :src-host new-host.home, :path /2/fader2, :type-tag f, :args (0.027918782)}
+;; preload some basic patterns
+(buffer-write! buf-0 [1 1 1 1 1 1 1 1])
+(buffer-write! buf-1 [220 660 110 660 440 220 660 110])
+;; get random
+(buffer-write! buf-1 (repeatedly 8 #(choose [110 220 440 660 880])))
 
-(defn control-ping-scale
- [synth key val]
- (let [val (scale-range val 0 1 50 1000)]
-      (ctl synth key val)))
-
-(defn control-synth-release
- [synth val]
- (let [val (scale-range val 0 1 0 10)]
-      (ctl synth :release val))) 
-
-(control-ping-scale (:0 ping-map) :freq 0.5)
-;(control-ping-scale b :freq 0.8)
-;(control-ping-scale c :freq 0.5)
-;(control-ping-scale d :freq 0.1)
-;(ctl ping-env :release 4.0)
-(stop)
-
-(def ping-map {
-  :0 (ping-env :beat-num 0 :sequencer buf-0)
-  :1 (ping-env :beat-num 1 :sequencer buf-0)
-  :2 (ping-env :beat-num 2 :sequencer buf-0)
-  :3 (ping-env :beat-num 3 :sequencer buf-0)
-  :4 (ping-env :beat-num 4 :sequencer buf-0)
-  :5 (ping-env :beat-num 5 :sequencer buf-0)
-  :6 (ping-env :beat-num 6 :sequencer buf-0)
-  :7 (ping-env :beat-num 7 :sequencer buf-0)
-})
-
-; (stop)
-;; start up the timer synths
-(do 
-(def r-trg (root-trg))
-(def r-cnt (root-cnt [:after r-trg]))
-(def b-trg (beat-trg [:after r-trg]))
-(def b-cnt (beat-cnt [:after r-trg]))
-)
-
+; timing bus setup
 (defonce root-trg-bus (control-bus)) ;; global metronome pulse
 (defonce root-cnt-bus (control-bus)) ;; global metronome count
 (defonce beat-trg-bus (control-bus)) ;; beat pulse (fraction of root)
 (defonce beat-cnt-bus (control-bus)) ;; beat count
+(defonce meter-cnt-bus (control-bus))
+(defonce note-bus  (control-bus))
 
 (def BEAT-FRACTION "Number of global pulses per beat" 30)
 
@@ -69,32 +37,60 @@
 (defsynth beat-cnt []
   (out:kr beat-cnt-bus (pulse-count (in:kr beat-trg-bus))))
 
+(defsynth meter-cnt [meter-cnt-bus 0 div 8]
+  (out:kr meter-cnt-bus (mod (in:kr beat-cnt-bus) div)))
 
-; (env-gen (adsr) :gate gate :action NO-ACTION)
-(definst ping-env [freq 440 release 0.1 beat-num 0 sequencer 0]
- (let [src1 (sin-osc freq)
+;; this one generates a sequence of frequenciess from buffer
+(defsynth note-sequencer
+  "Plays a sequence of notes to a bus"
+  [buf 0 meter-count-bus 0 out-bus 1]
+  (out out-bus (buf-rd:kr 1 buf (in:kr meter-count-bus) 1 0)))
+
+;; this is a synth; it needs notes and it needs beats 
+(definst ping-env [note-bus 0 release 0.1 beat-num 0 sequencer 0]
+ (let [note (in:kr note-bus)
+       src1 (sin-osc note)
        cnt (in:kr beat-cnt-bus)
        beat-trg (in:kr beat-trg-bus)
        bar-trg (and 
           (buf-rd:kr 1 sequencer cnt)
-          (= beat-num (mod cnt 8)) 
           beat-trg)]
   (* (decay bar-trg release) src1)))
 
-; now ping-env programmable beats
-; (ctl ping-env :release 0.9)
+;; start up the timer synths
+(comment
+(do 
+(def r-trg (root-trg))
+(def r-cnt (root-cnt [:after r-trg]))
+(def b-trg (beat-trg [:after r-trg]))
+(def b-cnt (beat-cnt [:after r-trg]))
+(def m-cnt8  (meter-cnt meter-cnt-bus 8))
+(def dub-note-seq (note-sequencer buf-1 meter-cnt-bus note-bus))
+)
+)
 
-(defonce buf-0 (buffer 8))
-(buffer-write! buf-0 [1 1 1 1 1 1 1 1])
+;; create the synth
+(ping-env :note-bus note-bus :beat-num 7 :sequencer buf-0)
 
 
-(ctl ping-env :release 4.0)
+;; now link touchosc
+(defn control-ping-scale
+ [synth key val]
+ (let [val (scale-range val 0 1 50 1000)]
+      (ctl synth key val)))
 
+(defn control-synth-release
+ [synth val]
+ (let [val (scale-range val 0 1 0 10)]
+      (ctl synth :release val))) 
+;; start an osc server on port 44100
+;(def server (osc-server 44100 "osc-clj-meetup"))
+; (zero-conf-on)
 
-(osc-handle server "/1/fader1" (fn [msg] (control-synth-release ping-env (first (:args msg)))))
-(control-synth-release ping-env 0.01)
+; (osc-listen server (fn [msg] (println msg)) :debug)
+; (osc-rm-listener server :debug)
 
-;; link touchosc
+(comment
 (do
 (osc-handle server "/2/toggle1" (fn [msg] (buffer-write! buf-0 0 [(int (first (:args msg)))])))
 (osc-handle server "/2/toggle2" (fn [msg] (buffer-write! buf-0 1 [(int (first (:args msg)))])))
@@ -115,4 +111,5 @@
 (osc-handle server "/2/fader6" (fn [msg] (control-ping-scale (:5 ping-map) :freq (first (:args msg)))))
 (osc-handle server "/2/fader7" (fn [msg] (control-ping-scale (:6 ping-map) :freq (first (:args msg)))))
 (osc-handle server "/2/fader8" (fn [msg] (control-ping-scale (:7 ping-map) :freq (first (:args msg)))))
+)
 )
