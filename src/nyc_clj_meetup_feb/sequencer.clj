@@ -65,7 +65,7 @@
 (def b-trg (beat-trg [:after r-trg]))
 (def b-cnt (beat-cnt [:after r-trg]))
 (def m-cnt8  (meter-cnt meter-cnt-bus 8))
-(def dub-note-seq (note-sequencer buf-1 meter-cnt-bus note-bus))
+(def note-seq (note-sequencer buf-1 meter-cnt-bus note-bus))
 )
 )
 
@@ -74,10 +74,9 @@
 
 
 ;; now link touchosc
-(defn control-ping-scale
- [synth key val]
- (let [val (scale-range val 0 1 50 1000)]
-      (ctl synth key val)))
+(defn freq-scale
+ [val]
+ (scale-range val 0 1 50 1000))
 
 (defn control-synth-release
  [synth val]
@@ -103,13 +102,13 @@
 )
 
 (do
-(osc-handle server "/2/fader1" (fn [msg] (control-ping-scale (:0 ping-map) :freq (first (:args msg)))))
-(osc-handle server "/2/fader2" (fn [msg] (control-ping-scale (:1 ping-map) :freq (first (:args msg)))))
-(osc-handle server "/2/fader3" (fn [msg] (control-ping-scale (:2 ping-map) :freq (first (:args msg)))))
-(osc-handle server "/2/fader4" (fn [msg] (control-ping-scale (:3 ping-map) :freq (first (:args msg)))))
-(osc-handle server "/2/fader5" (fn [msg] (control-ping-scale (:4 ping-map) :freq (first (:args msg)))))
-(osc-handle server "/2/fader6" (fn [msg] (control-ping-scale (:5 ping-map) :freq (first (:args msg)))))
-(osc-handle server "/2/fader7" (fn [msg] (control-ping-scale (:6 ping-map) :freq (first (:args msg)))))
-(osc-handle server "/2/fader8" (fn [msg] (control-ping-scale (:7 ping-map) :freq (first (:args msg)))))
+(osc-handle server "/2/fader1" (fn [msg] (buffer-write! buf-1 0 [(freq-scale (first (:args msg)))])))
+(osc-handle server "/2/fader2" (fn [msg] (buffer-write! buf-1 1 [(freq-scale (first (:args msg)))])))
+(osc-handle server "/2/fader3" (fn [msg] (buffer-write! buf-1 2 [(freq-scale (first (:args msg)))])))
+(osc-handle server "/2/fader4" (fn [msg] (buffer-write! buf-1 3 [(freq-scale (first (:args msg)))])))
+(osc-handle server "/2/fader5" (fn [msg] (buffer-write! buf-1 4 [(freq-scale (first (:args msg)))])))
+(osc-handle server "/2/fader6" (fn [msg] (buffer-write! buf-1 5 [(freq-scale (first (:args msg)))])))
+(osc-handle server "/2/fader7" (fn [msg] (buffer-write! buf-1 6 [(freq-scale (first (:args msg)))])))
+(osc-handle server "/2/fader8" (fn [msg] (buffer-write! buf-1 7 [(freq-scale (first (:args msg)))])))
 )
 )
