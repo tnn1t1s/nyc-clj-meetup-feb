@@ -5,40 +5,30 @@
 
 ; casio tone for the painfully alone
 ;; kick / noisy snare / and a drony synth
-;; 1) try 16ths
-;; 2) write multi buffers
+;; 1) try 16ths (done)
+;; 2) write multi buffers (done but you need to organize)
 ;; 3) touchosc control
 ;; 4) done
 ;; this should be more than 2 hours work max
 
 ; sequencer buffers
-;; this one will keep the kicks1
+;; kicks1
 (defonce buf-0 (buffer 16))
 (defonce buf-1 (buffer 16))
+(buffer-write! buf-0 [1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0])
+;(buffer-write! buf-0 (repeatedly 16 #(choose [0 1])))
+(buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
+
 ;; snares 
 (defonce buf-2 (buffer 16))
 (defonce buf-3 (buffer 16))
-;; lead 
-(defonce buf-4 (buffer 16))
-(defonce buf-5 (buffer 16))
-
-
-;; preload some basic patterns
-;; kicks
-(buffer-write! buf-0 [1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0])
-; break!
-;(buffer-write! buf-0 (repeatedly 16 #(choose [0 1])))
-
-;; notes
-;; get random
-(buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
-
-; snare
 ;(buffer-write! buf-2 [0 0 1 0 0 0 1 0 0 0 1 0 0 0 1 0])
 ;(buffer-write! buf-2 (repeatedly 16 #(choose [0 1])))
 ;(buffer-write! buf-3 [220 220 220 220 220 220 220 220])
 
-; lead 
+;; lead 
+(defonce buf-4 (buffer 16))
+(defonce buf-5 (buffer 16))
 ;(buffer-write! buf-4 (repeatedly 16 #(choose [0 1])))
 ;(buffer-write! buf-5 [220 220 220 220 220 220 220 220])
 
@@ -71,7 +61,7 @@
 (defsynth meter-cnt [meter-cnt-bus 0 div 16]
   (out:kr meter-cnt-bus (mod (in:kr beat-cnt-bus) div)))
 
-;; this one generates a sequence of frequenciess from buffer
+;; this one generates a sequence of frequencies from buffer
 (defsynth note-sequencer
   "Plays a sequence of notes to a bus"
   [buf 0 meter-count-bus 0 out-bus 1]
@@ -115,23 +105,6 @@
        tone (* (decay trig tone-decay) (rlpf (saw freq) freq rez))]
   (* master (+ (* noise-amp noize) (* tone-amp tone)))))
 
-;(stop)
-(comment
-(ctl kick-909 :noise-amp 0.05) 
-(ctl kick-909 :noise-decay 0.1) 
-(ctl kick-909 :freq 60) 
-(ctl kick-909 :rez 0.1) 
-(ctl snare :master 1.0)
-(ctl snare :tone-amp 0.01)
-(ctl snare :freq 880)
-(ctl snare :noise-amp 0.2)
-(ctl snare :noize-decay 0.1)
-(ctl ping-it :release 0.2)
-(ctl ping-it :cutoff 300)
-(ctl ping-it :rez 0.1)
-)
- 
-
 
 ;; start up the timer synths
 (comment
@@ -156,14 +129,21 @@
 ;(snare    :sequence-bus sequence-bus-2)
 ;(ping-it  :sequence-bus sequence-bus-3 :note-bus note-bus)
 
-;; create the synth
-;(ping-env :note-bus note-bus :sequencer buf-0)
-;(ping-it :sequence-bus sequence-bus :note-bus note-bus :release 0.1)
-;(sin-it :sequence-bus sequence-bus :note-bus note-bus :release 0.1)
-;(ctl sin-it :release 0.75)
-;(ctl ping-it :release 0.75)
-;(ctl ping-it :cutoff 220)
-;(ctl ping-it :rez 0.1)
+;(stop)
+(comment
+(ctl kick-909 :noise-amp 0.05) 
+(ctl kick-909 :noise-decay 0.1) 
+(ctl kick-909 :freq 60) 
+(ctl kick-909 :rez 0.1) 
+(ctl snare :master 1.0)
+(ctl snare :tone-amp 0.01)
+(ctl snare :freq 880)
+(ctl snare :noise-amp 0.2)
+(ctl snare :noize-decay 0.1)
+(ctl ping-it :release 0.2)
+(ctl ping-it :cutoff 300)
+(ctl ping-it :rez 0.1)
+)
 
 
 ;; now link touchosc
