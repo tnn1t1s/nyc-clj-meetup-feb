@@ -1,9 +1,9 @@
 (ns nyc-clj-meetup-feb.play
   (:use overtone.live))
 
+;(stop)
 
-(stop)
-; make something passabl entertaining
+; casio tone for the painfully alone
 ;; kick / noisy snare / and a drony synth
 ;; 1) try 16ths
 ;; 2) write multi buffers
@@ -13,29 +13,34 @@
 
 ; sequencer buffers
 ;; this one will keep the kicks1
-(defonce buf-0 (buffer 8))
-(defonce buf-1 (buffer 8))
+(defonce buf-0 (buffer 16))
+(defonce buf-1 (buffer 16))
 ;; snares 
-(defonce buf-2 (buffer 8))
-(defonce buf-3 (buffer 8))
+(defonce buf-2 (buffer 16))
+(defonce buf-3 (buffer 16))
 ;; lead 
-(defonce buf-4 (buffer 8))
-(defonce buf-5 (buffer 8))
+(defonce buf-4 (buffer 16))
+(defonce buf-5 (buffer 16))
 
 
 ;; preload some basic patterns
-(buffer-write! buf-0 [1 0 0 1 1 0 0 0])
-(buffer-write! buf-1 [220 660 110 660 440 220 660 110])
+;; kicks
+(buffer-write! buf-0 [1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0])
+; break!
+;(buffer-write! buf-0 (repeatedly 16 #(choose [0 1])))
+
+;; notes
 ;; get random
-(buffer-write! buf-1 (repeatedly 8 #(choose [110 220 440 660 880])))
+(buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
 
 ; snare
-(buffer-write! buf-2 [0 0 1 0 0 0 1 0])
-(buffer-write! buf-3 [220 220 220 220 220 220 220 220])
+;(buffer-write! buf-2 [0 0 1 0 0 0 1 0 0 0 1 0 0 0 1 0])
+;(buffer-write! buf-2 (repeatedly 16 #(choose [0 1])))
+;(buffer-write! buf-3 [220 220 220 220 220 220 220 220])
 
 ; lead 
-(buffer-write! buf-4 [1 1 1 1 1 1 1 1])
-(buffer-write! buf-5 [220 220 220 220 220 220 220 220])
+;(buffer-write! buf-4 (repeatedly 16 #(choose [0 1])))
+;(buffer-write! buf-5 [220 220 220 220 220 220 220 220])
 
 ; timing bus setup
 (defonce root-trg-bus (control-bus)) ;; global metronome pulse
@@ -51,7 +56,7 @@
 (def BEAT-FRACTION "Number of global pulses per beat" 30)
 
 ;; Here we design synths that will drive our pulse buses.
-(defsynth root-trg [rate 100]
+(defsynth root-trg [rate 180]
   (out:kr root-trg-bus (impulse:kr rate)))
 
 (defsynth root-cnt []
@@ -63,7 +68,7 @@
 (defsynth beat-cnt []
   (out:kr beat-cnt-bus (pulse-count (in:kr beat-trg-bus))))
 
-(defsynth meter-cnt [meter-cnt-bus 0 div 8]
+(defsynth meter-cnt [meter-cnt-bus 0 div 16]
   (out:kr meter-cnt-bus (mod (in:kr beat-cnt-bus) div)))
 
 ;; this one generates a sequence of frequenciess from buffer
@@ -98,28 +103,34 @@
 
 ;; 909 kick clone
 ;; http://www.nireaktor.com/reaktor-tutorials/how-to-make-a-909-kick-in-reaktor/
-(definst kick-909 [sequence-bus 0 freq 60 noise-amp 0.2 noize-decay 0.1 tone-decay 0.3 rez 0.1]
+(definst kick-909 [sequence-bus 0 master 1.0 freq 60 noise-amp 0.2 noize-decay 0.1 tone-decay 0.3 rez 0.1]
  (let [trig (in:kr sequence-bus)
        noize (* (decay trig noize-decay) (white-noise))
        tone (* (decay trig tone-decay) (rlpf (saw freq) freq rez))]
-  (+ (* noise-amp noize) tone)))
+  (* master (+ (* noise-amp noize) tone))))
 
-(definst snare [sequence-bus 0 freq 110 noise-amp 0.5 noize-decay 0.1 tone-amp 0.1 tone-decay 0.3 rez 0.1]
+(definst snare [sequence-bus 0 master 1.0 freq 110 noise-amp 0.5 noize-decay 0.1 tone-amp 0.1 tone-decay 0.3 rez 0.1]
  (let [trig (in:kr sequence-bus)
        noize (* (decay trig noize-decay) (white-noise))
        tone (* (decay trig tone-decay) (rlpf (saw freq) freq rez))]
-  (+ (* noise-amp noize) (* tone-amp tone))))
+  (* master (+ (* noise-amp noize) (* tone-amp tone)))))
 
+;(stop)
+(comment
 (ctl kick-909 :noise-amp 0.05) 
 (ctl kick-909 :noise-decay 0.1) 
 (ctl kick-909 :freq 60) 
-(ctl kick-909 :rez 0.05) 
-(ctl snare :tone-amp 0.0)
+(ctl kick-909 :rez 0.1) 
+(ctl snare :master 1.0)
+(ctl snare :tone-amp 0.01)
+(ctl snare :freq 880)
 (ctl snare :noise-amp 0.2)
-(ctl snare :noize-decay 0.5)
-(ctl ping-it :release 2.0)
+(ctl snare :noize-decay 0.1)
+(ctl ping-it :release 0.2)
+(ctl ping-it :cutoff 300)
+(ctl ping-it :rez 0.1)
+)
  
-(stop) 
 
 
 ;; start up the timer synths
@@ -138,18 +149,21 @@
 )
 )
 
-(stop)
+;; change tempo
+(ctl r-trg :rate 220)
+
 (kick-909 :sequence-bus sequence-bus)
-(snare    :sequence-bus sequence-bus-2)
-(ping-it  :sequence-bus sequence-bus-3 :note-bus note-bus)
+;(snare    :sequence-bus sequence-bus-2)
+;(ping-it  :sequence-bus sequence-bus-3 :note-bus note-bus)
+
 ;; create the synth
 ;(ping-env :note-bus note-bus :sequencer buf-0)
 ;(ping-it :sequence-bus sequence-bus :note-bus note-bus :release 0.1)
 ;(sin-it :sequence-bus sequence-bus :note-bus note-bus :release 0.1)
 ;(ctl sin-it :release 0.75)
 ;(ctl ping-it :release 0.75)
-;(ctl ping-it :cutoff 100)
-;(ctl ping-it :rez 0.01)
+;(ctl ping-it :cutoff 220)
+;(ctl ping-it :rez 0.1)
 
 
 ;; now link touchosc
