@@ -1,7 +1,6 @@
 (ns nyc-clj-meetup-feb.sequencer
   (:use overtone.live))
 
-
 ; sequencer buffers
 ;; this one will keep the beats
 (defonce buf-0 (buffer 8))
@@ -9,7 +8,7 @@
 (defonce buf-1 (buffer 8))
 
 ;; preload some basic patterns
-(buffer-write! buf-0 [1 1 1 1 1 1 1 1])
+(buffer-write! buf-0 [1 0 1 1 1 0 1 1])
 (buffer-write! buf-1 [220 660 110 660 440 220 660 110])
 ;; get random
 (buffer-write! buf-1 (repeatedly 8 #(choose [110 220 440 660 880])))
@@ -21,6 +20,7 @@
 (defonce beat-cnt-bus (control-bus)) ;; beat count
 (defonce meter-cnt-bus (control-bus))
 (defonce note-bus  (control-bus))
+(defonce sequence-bus  (control-bus))
 
 (def BEAT-FRACTION "Number of global pulses per beat" 30)
 
@@ -46,17 +46,31 @@
   [buf 0 meter-count-bus 0 out-bus 1]
   (out out-bus (buf-rd:kr 1 buf (in:kr meter-count-bus) 1 0)))
 
-;; this is a synth; it needs notes and it needs beats 
-(definst ping-env [note-bus 0 release 0.1 beat-num 0 sequencer 0]
- (let [note (in:kr note-bus)
-       src1 (sin-osc note)
-       cnt (in:kr beat-cnt-bus)
+;; sets up a buf trigger on bus
+(defsynth trigger-sequencer [sequence-buf 0 out-bus 1]
+ (let [cnt (in:kr beat-cnt-bus)
        beat-trg (in:kr beat-trg-bus)
-       bar-trg (and 
-          (buf-rd:kr 1 sequencer cnt)
+       bar-trg (and
+          (buf-rd:kr 1 sequence-buf cnt)
           beat-trg)]
-  (* (decay bar-trg release) src1)))
+  (out out-bus bar-trg)))
+ 
+;; this is a basic saw synth; it takes sequence and note inputs
+(definst ping-it [sequence-bus 0 note-bus 0 release 0.1 cutoff 440 rez 1.0]
+ (let [trig (in:kr sequence-bus)
+       note (in:kr note-bus)
+       src (rlpf (saw note) cutoff rez)]
+  (* (decay trig release) src)))
 
+;; this is a sin synth. refactoring the sequence input bus makes it much easier to 
+;; define and route multiples. 
+(definst sin-it [sequence-bus 0 note-bus 0 release 0.1]
+ (let [trig (in:kr sequence-bus)
+       note (in:kr note-bus)
+       src (sin-osc note)]
+  (* (decay trig release) src)))
+
+(stop)
 ;; start up the timer synths
 (comment
 (do 
@@ -66,11 +80,18 @@
 (def b-cnt (beat-cnt [:after r-trg]))
 (def m-cnt8  (meter-cnt meter-cnt-bus 8))
 (def note-seq (note-sequencer buf-1 meter-cnt-bus note-bus))
+(def trigger-seq (trigger-sequencer buf-0 sequence-bus))
 )
 )
 
 ;; create the synth
-(ping-env :note-bus note-bus :beat-num 7 :sequencer buf-0)
+;(ping-env :note-bus note-bus :sequencer buf-0)
+(ping-it :sequence-bus sequence-bus :note-bus note-bus :release 0.1)
+(sin-it :sequence-bus sequence-bus :note-bus note-bus :release 0.1)
+;(ctl sin-it :release 0.75)
+;(ctl ping-it :release 0.75)
+;(ctl ping-it :cutoff 100)
+;(ctl ping-it :rez 0.01)
 
 
 ;; now link touchosc
