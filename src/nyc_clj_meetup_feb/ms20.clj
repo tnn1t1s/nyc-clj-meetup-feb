@@ -1,6 +1,4 @@
 (ns nyc-clj-meetup-feb.ms20
-  (:use overtone.live
-        overtone.studio.scope))
 
 
 ; intro to oscilloscope and spectrogram
@@ -10,7 +8,8 @@
 ;; sequencer buffers
 (defonce buf-0 (buffer 16))
 (defonce buf-1 (buffer 16))
-;; (buffer-write! buf-1 (repeatedly 8 #(choose [110 220 440 660 880])))
+;; (buffer-write! buf-0 (repeatedly 16 #(choose [1])))
+;; (buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
 
 ; get on the bus
 (defonce sin-bus (audio-bus))
@@ -53,7 +52,7 @@
 (defsynth beat-cnt []
   (out:kr beat-cnt-bus (pulse-count (in:kr beat-trg-bus))))
 
-(defsynth meter-cnt [meter-cnt-bus 0 div 8]
+(defsynth meter-cnt [meter-cnt-bus 0 div 16]
   (out:kr meter-cnt-bus (mod (in:kr beat-cnt-bus) div)))
 
 ;; this generates a sequence of frequenciess from buffer
@@ -69,25 +68,29 @@
         bar-trg (and (buf-rd:kr 1 sequence-buf cnt) beat-trg)]
     (out out-bus bar-trg)))
 
-(defsynth monotron-duo [
+(defsynth korg-ms20 [
   sequence-bus 0
   note-bus 0
   freq-mod-bus 0 
   cutoff-mod-bus 0
   rez-bus 0
-  freq 220
   freq-amp 55
   cutoff 440
   cutoff-amp 1.0
   rez 1.0
   rez-amp 1.0
+  dcy 0.5
+  sustain 0.0
   ]
   (let [
+  trig (in:kr sequence-bus)
+  note (in:kr note-bus)
+  amp-env (env-gen (envelope [10e-10, 1, 1, 10e-10] [0.01, sustain, dcy] :exp) :gate trig :action NO-ACTION)
   cutoff (+ cutoff (* cutoff-amp (in:kr cutoff-mod-bus)))
-  freq (+ freq (* freq-amp (in:kr freq-mod-bus)))
+  freq (+ note (* freq-amp (in:kr freq-mod-bus)))
   rez (+ rez (* rez-amp (in:kr rez-bus)))
   ]
-    (out 0 (pan2 (rlpf (saw freq) cutoff rez)))))
+    (out 0 (pan2 (* amp-env (rlpf (saw freq) cutoff rez))))))
 
 (comment
 (do
@@ -98,28 +101,23 @@
 (def r-cnt (root-cnt [:after r-trg]))
 (def b-trg (beat-trg [:after r-trg]))
 (def b-cnt (beat-cnt [:after r-trg]))
-(def m-cnt8  (meter-cnt meter-cnt-bus 8))
-(def note-seq (note-sequencer buf-1 meter-cnt-bus note-bus))
+(def m-cnt16  (meter-cnt meter-cnt-bus 16))
 (def trigger-seq (trigger-sequencer buf-0 sequence-bus))
+(def note-seq (note-sequencer buf-1 meter-cnt-bus note-bus))
 ))
 
+;(stop)
 (comment
-(def mft (monotron-duo [:tail later-g] sin-bus mod-bus lfo-bus 439))
-(def mf2 (monotron-duo [:tail later-g] sin-bus mod-bus lfo-bus 440))
-(def mf3 (monotron-duo [:tail later-g] sin-bus mod-bus lfo-bus 441))
+(def mft (korg-ms20 [:tail later-g] sequence-bus note-bus sin-bus mod-bus lfo-bus))
 )
 
 (comment
 (ctl mod-synth-inst :freq 1)
-(ctl mft :cutoff-amp 400.0)
-(ctl mft :rez 0.01)
-(ctl mf2 :rez 0.01)
-(ctl mf3 :rez 0.01)
-(ctl mft :freq 440)
-(ctl mf2 :freq 439)
-;(ctl mf3 :freq 1760)
-(ctl mf3 :freq 1760)
-(ctl mf2 :cutoff 300)
+(ctl mft :dcy 2.0)
+(ctl mft :rez 0.1)
+(ctl cutoff :cutoff 800)
+(ctl mft :freq-amp 0.0)
+(ctl mft :rez-amp 0.0)
 )
 
 
