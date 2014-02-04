@@ -1,6 +1,6 @@
 (ns nyc-clj-meetup-feb.ms20
 
-
+(stop)
 ; intro to oscilloscope and spectrogram
 ; (demo 5 (rlpf (saw 440) (mouse-x 10 10000) 1.0))
 (spectrogram)
@@ -10,6 +10,7 @@
 (defonce buf-1 (buffer 16))
 ;; (buffer-write! buf-0 (repeatedly 16 #(choose [1])))
 ;; (buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
+;; (buffer-write! buf-1 (repeatedly 16 #(choose [110])))
 
 ; get on the bus
 (defonce sin-bus (audio-bus))
@@ -111,15 +112,23 @@
 (def mft (korg-ms20 [:tail later-g] sequence-bus note-bus sin-bus mod-bus lfo-bus))
 )
 
+;; playing with these is interesting enough
 (comment
-(ctl mod-synth-inst :freq 1)
-(ctl mft :dcy 2.0)
-(ctl mft :rez 0.1)
-(ctl cutoff :cutoff 800)
+(ctl sin-synth-inst :freq 1)
+(ctl mod-synth-inst :freq 5)
+(ctl lfo-synth-inst :freq 10)
+(ctl mft :dcy 5.0)
+(ctl mft :rez 0.2)
+(ctl mft :cutoff 200)
+(ctl mft :cutoff-amp 20)
 (ctl mft :freq-amp 0.0)
-(ctl mft :rez-amp 0.0)
+(ctl mft :rez-amp 2.5)
 )
 
+;; procession of simulacra
+
+;; now, connect touchosc
+;;
 
 
 
