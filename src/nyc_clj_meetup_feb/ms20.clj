@@ -1,16 +1,17 @@
 (ns nyc-clj-meetup-feb.ms20
+      (:use overtone.live))
 
 (stop)
 ; intro to oscilloscope and spectrogram
 ; (demo 5 (rlpf (saw 440) (mouse-x 10 10000) 1.0))
-(spectrogram)
+;(spectrogram)
 
 ;; sequencer buffers
 (defonce buf-0 (buffer 16))
 (defonce buf-1 (buffer 16))
-;; (buffer-write! buf-0 (repeatedly 16 #(choose [1])))
+(buffer-write! buf-0 (repeatedly 16 #(choose [1])))
 ;; (buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
-;; (buffer-write! buf-1 (repeatedly 16 #(choose [110])))
+(buffer-write! buf-1 (repeatedly 16 #(choose [110])))
 
 ; get on the bus
 (defonce sin-bus (audio-bus))
@@ -112,24 +113,45 @@
 (def mft (korg-ms20 [:tail later-g] sequence-bus note-bus sin-bus mod-bus lfo-bus))
 )
 
-;; playing with these is interesting enough
+;;  factory defaults
 (comment
-(ctl sin-synth-inst :freq 1)
-(ctl mod-synth-inst :freq 5)
-(ctl lfo-synth-inst :freq 10)
+(do
+(ctl sin-synth-inst :freq 100)
+(ctl mod-synth-inst :freq 1)
+(ctl lfo-synth-inst :freq 1)
 (ctl mft :dcy 5.0)
-(ctl mft :rez 0.2)
-(ctl mft :cutoff 200)
-(ctl mft :cutoff-amp 20)
-(ctl mft :freq-amp 0.0)
-(ctl mft :rez-amp 2.5)
+(ctl mft :rez 1.0)
+(ctl mft :cutoff 400)
+(ctl mft :cutoff-amp 100)
+(ctl mft :freq-amp 10.0)
+(ctl mft :rez-amp 0.5)
+)
 )
 
 ;; procession of simulacra
 
 ;; now, connect touchosc
-;;
+(defn control-scale
+   [inst key val x y]
+   (let [val (scale-range val 0 1 x y)]
+           (do (ctl inst key val))))
 
+;; start an osc server on port 44100
+;(def server (osc-server 44100 "osc-clj-meetup"))
+; (zero-conf-on)
+
+; (osc-listen server (fn [msg] (println msg)) :debug)
+; (osc-rm-listener server :debug)
+(osc-handle server "/3/rotary1" (fn [msg] (control-scale mft :cutoff (first (:args msg)) 60 600)))
+(osc-handle server "/3/rotary2" (fn [msg] (control-scale mft :rez (first (:args msg)) 0 1)))
+(osc-handle server "/3/rotary3" (fn [msg] (control-scale mft :dcy (first (:args msg)) 0 10)))
+(osc-handle server "/3/rotary4" (fn [msg] (control-scale sin-synth-inst :freq (first (:args msg)) 0 100)))
+(osc-handle server "/3/rotary5" (fn [msg] (control-scale mod-synth-inst :freq (first (:args msg)) 0 10)))
+(osc-handle server "/3/rotary6" (fn [msg] (control-scale lfo-synth-inst :freq (first (:args msg)) 0 10)))
+
+(osc-handle server "/3/toggle1" (fn [msg] (control-scale mft :freq-amp (first (:args msg)) 0 10)))
+(osc-handle server "/3/toggle2" (fn [msg] (control-scale mft :cutoff-amp (first (:args msg)) 0 100)))
+(osc-handle server "/3/toggle3" (fn [msg] (control-scale mft :rez-amp (first (:args msg)) 0 1)))
 
 
 
