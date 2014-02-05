@@ -1,8 +1,6 @@
 (ns nyc-clj-meetup-feb.play
   (:use overtone.live))
 
-;(stop)
-
 ; casio tone for the painfully alone
 ; annotate this code
 
@@ -23,7 +21,6 @@
 ;; lead 
 (defonce buf-4 (buffer 16))
 (defonce buf-5 (buffer 16))
-(buffer-write! buf-8 (repeatedly 16 #(choose [1])))
 (buffer-write! buf-5 (repeatedly 16 #(choose [110])))
 (buffer-write! buf-5 [110 60 60 60 220 60 60 60 440 60 60 60 880 60 60 60])
 (buffer-write! buf-5 (repeatedly 16 #(choose [110 220 440 660 880])))
@@ -38,12 +35,14 @@
 
 ;; inst-1
 (defonce buf-8 (buffer 16))
-(buffer-write! buf-8 (repeatedly 16 #(choose [0 1])))
+(buffer-write! buf-8 (repeatedly 16 #(choose [0])))
+(buffer-write! buf-8 (repeatedly 16 #(choose [1])))
 (defonce buf-9 (buffer 16))
+(buffer-write! buf-9 (repeatedly 16 #(choose [110 220 440 660 880])))
 
 ;; inst-2
 (defonce buf-10 (buffer 16))
-(buffer-write! buf-10 (repeatedly 16 #(choose [1])))
+(buffer-write! buf-10 (repeatedly 16 #(choose [0])))
 (defonce buf-11 (buffer 16))
 
 
@@ -82,13 +81,12 @@
 (defsynth meter-cnt [meter-cnt-bus 0 div 16]
   (out:kr meter-cnt-bus (mod (in:kr beat-cnt-bus) div)))
 
-;; this one generates a sequence of frequencies from buffer
+;; this synth generates a sequence of frequencies from buffer
 (defsynth note-sequencer
   "Plays a sequence of notes to a bus"
   [buf 0 meter-count-bus 0 out-bus 1]
   (out out-bus (buf-rd:kr 1 buf (in:kr meter-count-bus) 1 0)))
 
-(odoc buf-rd)
 
 ;; sets up a buf trigger on bus
 (defsynth trigger-sequencer [sequence-buf 0 out-bus 1]
@@ -193,62 +191,62 @@
 
 ;; change tempo
 ;(ctl r-trg :rate 220)
-(kick-909 :sequence-bus sequence-bus-1)
-(snare    :sequence-bus sequence-bus-2)
-(hat :sequence-bus sequence-bus-3)
-(ping-it  :sequence-bus sequence-bus-4 :note-bus note-bus-4)
-(tb-303  :sequence-bus sequence-bus-5 :note-bus note-bus-3)
-(sin-it  :sequence-bus sequence-bus-6 :note-bus note-bus-4)
+;(kick-909 :sequence-bus sequence-bus-1)
+;(snare    :sequence-bus sequence-bus-2)
+;(hat :sequence-bus sequence-bus-3)
+;(ping-it  :sequence-bus sequence-bus-4 :note-bus note-bus-4)
+;(tb-303  :sequence-bus sequence-bus-5 :note-bus note-bus-3)
+;(sin-it  :sequence-bus sequence-bus-6 :note-bus note-bus-4)
 
 ;(stop)
 (comment
-(ctl kick-909 :master 0.0) 
 (ctl kick-909 :master 1.0) 
-(ctl kick-909 :noise-amp 0.05) 
-(ctl kick-909 :noise-decay 0.1) 
+(ctl kick-909 :master 1.0) 
+(ctl kick-909 :noise-amp 0.15) 
+(ctl kick-909 :noise-decay 0.5) 
 (ctl kick-909 :freq 60) 
 (ctl kick-909 :rez 0.1) 
-(ctl snare :master 1.0)
-(ctl snare :tone-amp 0.1)
+(ctl snare :master 0.0)
+(ctl snare :tone-amp 1.0)
 (ctl snare :freq 880)
 (ctl snare :noise-amp 0.2)
-(ctl snare :noize-decay 1.0)
-(ctl ping-it :release 0.8)
-(ctl ping-it :cutoff 300)
-(ctl ping-it :rez 0.05)
+(ctl snare :noize-decay 0.5)
+(ctl ping-it :release 1.8)
+(ctl ping-it :cutoff 1000)
+(ctl ping-it :rez 0.25)
 )
 
 
-;; now link touchosc
-(defn freq-scale
- [val]
- (scale-range val 0 1 80 1000))
-
-(defn control-synth-release
- [synth val]
- (let [val (scale-range val 0 1 0 10)]
-      (ctl synth :release val))) 
-
-
 ;; start an osc server on port 44100
-(def server (osc-server 44100 "osc-clj-meetup"))
-(zero-conf-on)
+;(def server (osc-server 44100 "osc-clj-meetup"))
+;(zero-conf-on)
 
-; (osc-listen server (fn [msg] (println msg)) :debug)
-; (osc-rm-listener server :debug)
+;(osc-listen server (fn [msg] (println msg)) :debug)
+;(osc-rm-listener server :debug)
+;(osc-close server)
 
 
 ; myfx returns a function that write index id into buf 
-(defn myfx [buf id] (fn [msg] (buffer-write! buf id [(int (first (:args msg)))])))
+(defn myfx [buf id] (fn [msg] 
+                      (buffer-write! buf id [(int (first (:args msg)))])))
 
+
+(comment
+(osc-handle server "/2/multitoggle/1/1" (fn [msg] (buffer-write! buf-0 0 [(int (first (:args msg)))])))
+(osc-handle server "/2/multitoggle/1/2" (fn [msg] (buffer-write! buf-0 1 [(int (first (:args msg)))])))
+(osc-handle server "/2/multitoggle/1/3" (fn [msg] (buffer-write! buf-0 2 [(int (first (:args msg)))])))
+(osc-handle server "/2/multitoggle/1/4" (fn [msg] (buffer-write! buf-0 3 [(int (first (:args msg)))])))
+)
 ; map to touchosc beat machine tab two
 ; map the kicks
-(map #(osc-handle server (str "/2/multitoggle/1/"(+ %1 1)) (myfx buf-0 %1)) (range 0 16)) 
+(comment
+(do
+(map #(osc-handle server (str "/2/multitoggle/1/"(+ %1 1)) (myfx buf-0 %1)) (range 4 16)) 
 ; map the snares
 (map #(osc-handle server (str "/2/multitoggle/2/"(+ %1 1)) (myfx buf-2 %1)) (range 0 16)) 
-; map the pings
+; map the hats 
 (map #(osc-handle server (str "/2/multitoggle/3/"(+ %1 1)) (myfx buf-4 %1)) (range 0 16)) 
-; map the hats
+; map the ping
 (map #(osc-handle server (str "/2/multitoggle/4/"(+ %1 1)) (myfx buf-6 %1)) (range 0 16)) 
 ; map inst-1
 (map #(osc-handle server (str "/2/multitoggle/5/"(+ %1 1)) (myfx buf-8 %1)) (range 0 16)) 
@@ -256,21 +254,7 @@
 (map #(osc-handle server (str "/2/multitoggle/6/"(+ %1 1)) (myfx buf-10 %1)) (range 0 16)) 
 
 ;; set up 303 sliders
-(defn myfx-scale [buf id] (fn [msg] (buffer-write! buf id [(int (first (:args msg)))])))
-;(map #(osc-handle server (str "/2/multifader/" (+ %1 1)) (myfx-scale buf-5 %1)) (range 0 16))
-(osc-handle server "/2/multifader/1" (fn [msg] (buffer-write! buf-5 0 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/2" (fn [msg] (buffer-write! buf-5 1 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/3" (fn [msg] (buffer-write! buf-5 2 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/4" (fn [msg] (buffer-write! buf-5 3 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/5" (fn [msg] (buffer-write! buf-5 4 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/6" (fn [msg] (buffer-write! buf-5 5 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/7" (fn [msg] (buffer-write! buf-5 6 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/8" (fn [msg] (buffer-write! buf-5 7 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/9" (fn [msg] (buffer-write! buf-5 8 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/10" (fn [msg] (buffer-write! buf-5 9 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/11" (fn [msg] (buffer-write! buf-5 10 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/12" (fn [msg] (buffer-write! buf-5 11 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/13" (fn [msg] (buffer-write! buf-5 12 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/14" (fn [msg] (buffer-write! buf-5 13 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/15" (fn [msg] (buffer-write! buf-5 14 [(freq-scale (first (:args msg)))])))
-(osc-handle server "/2/multifader/16" (fn [msg] (buffer-write! buf-5 15 [(freq-scale (first (:args msg)))])))
+  ;(stop);
+(defn myfx-scale [buf id] (fn [msg] (buffer-write! buf id [(scale-range (int (first (:args msg))) 0 1 110 880)])))
+(map #(osc-handle server (str "/2/multifader/" (+ %1 1)) (myfx-scale buf-5 %1)) (range 0 16))
+))
