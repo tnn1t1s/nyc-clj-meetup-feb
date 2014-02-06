@@ -1,52 +1,65 @@
 (ns nyc-clj-meetup-feb.play
   (:use overtone.live))
 
-; casio tone for the painfully alone
-; annotate this code
+(stop)
+;; casio tone for the painfully alone
 
-; sequencer buffers
-;; kicks1
+;; this example shows we can extend the simple trigger sequencer
+;; and instrument we built for the ms20 clone into a sort of full featured
+;; polypohonic sequencer synthesizer beat box type thing.
+
+;; it's all built inside the supercollider server and controlled via the client.
+;; so in practice, later, we could all connect to the server adn control the 
+;; synth via touchosc.
+
+;; first, we need a data structure to hold our patterns
+
+;; buffers are like vectors that live on the server.  
+;; we will use them to store the sequence of events and notes to use
+;; in our sequencer
+;;
+; kicks
 (defonce buf-0 (buffer 16))
 (defonce buf-1 (buffer 16))
 (buffer-write! buf-0 [1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0])
-;(buffer-write! buf-0 (repeatedly 16 #(choose [0 1])))
-;(buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
+(buffer-write! buf-0 (repeatedly 16 #(choose [0 0])))
+(buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
 
-;; snares 
+; snares 
 (defonce buf-2 (buffer 16))
 (defonce buf-3 (buffer 16))
 (buffer-write! buf-2 [0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0])
-;(buffer-write! buf-2 (repeatedly 16 #(choose [0 1])))
+(buffer-write! buf-3 (repeatedly 16 #(choose [110 220 440 660 880])))
 
-;; lead 
+; lead 
 (defonce buf-4 (buffer 16))
 (defonce buf-5 (buffer 16))
-(buffer-write! buf-5 (repeatedly 16 #(choose [110])))
-(buffer-write! buf-5 [110 60 60 60 220 60 60 60 440 60 60 60 880 60 60 60])
+(buffer-write! buf-4 (repeatedly 16 #(choose [0 1])))
 (buffer-write! buf-5 (repeatedly 16 #(choose [110 220 440 660 880])))
 
-;; hat
+; hat
 (defonce buf-6 (buffer 16))
 (defonce buf-7 (buffer 16))
-(buffer-write! buf-7 [110 60 60 60 220 60 60 60 440 60 60 60 880 60 60 60])
-(buffer-write! buf-6 [1 1 1 0 1 1 0 1 0 1 0 0 0 1 0 1])
-;(buffer-write! buf-6 (repeatedly 16 #(choose [0 1])))
-;(buffer-write! buf-7 (repeatedly 16 #(choose [110 220 440 660 880])))
+(buffer-write! buf-6 (repeatedly 16 #(choose [0 1])))
+(buffer-write! buf-7 (repeatedly 16 #(choose [110 220 440 660 880])))
 
-;; inst-1
+; inst-1
 (defonce buf-8 (buffer 16))
-(buffer-write! buf-8 (repeatedly 16 #(choose [0])))
-(buffer-write! buf-8 (repeatedly 16 #(choose [1])))
 (defonce buf-9 (buffer 16))
+(buffer-write! buf-8 (repeatedly 16 #(choose [0 1])))
 (buffer-write! buf-9 (repeatedly 16 #(choose [110 220 440 660 880])))
 
-;; inst-2
+; inst-2
 (defonce buf-10 (buffer 16))
-(buffer-write! buf-10 (repeatedly 16 #(choose [0])))
 (defonce buf-11 (buffer 16))
+(buffer-write! buf-10 (repeatedly 16 #(choose [0 1])))
 
 
-; timing bus setup
+;; timing bus setup
+;; these are like the 'patch cables' that we saw in the ms20
+;; instead of carrying control-voltage, they will carry signals that
+;; we generate via control synths that we build later
+;
 (defonce root-trg-bus (control-bus)) ;; global metronome pulse
 (defonce root-cnt-bus (control-bus)) ;; global metronome count
 (defonce beat-trg-bus (control-bus)) ;; beat pulse (fraction of root)
@@ -66,7 +79,7 @@
 (def BEAT-FRACTION "Number of global pulses per beat" 30)
 
 ;; Here we design synths that will drive our pulse buses.
-(defsynth root-trg [rate 180]
+(defsynth root-trg [rate 220]
   (out:kr root-trg-bus (impulse:kr rate)))
 
 (defsynth root-cnt []
@@ -114,20 +127,18 @@
 
 ;; bass synth
 ;; https://github.com/overtone/overtone/blob/master/src/overtone/synth/retro.clj
-(defsynth tb-303
+(definst tb-303
   "A clone of the sound of a Roland TB-303 bass synthesizer."
   [sequence-bus 0
    note-bus 0
-   master   1.0       ; master volume
+   master   0.5       ; master volume
    wave     1         ; 0=saw, 1=square
    cutoff   100       ; bottom rlpf frequency
    env      1000      ; + cutoff is top of rlpf frequency
-   res      0.2       ; rlpf resonance
+   rez      0.2       ; rlpf resonance
    sus      0         ; sustain level
    dec      1.0       ; decay
-   amp      1.0       ; output amplitude
-   position 0         ; position in stereo field
-   out-bus  0]
+   position 0]         ; position in stereo field
   (let [trig (in:kr sequence-bus)
         note (in:kr note-bus)
         freq-val   note
@@ -142,8 +153,8 @@
         waves      [(* (saw freq-val) amp-env)
                     (* (pulse freq-val 0.5) amp-env)]
         tb303      (rlpf (select wave waves)
-                           (+ cutoff (* filter-env env)) res)]
-    (out out-bus (* amp (pan2 tb303 position)))))
+                           (+ cutoff (* filter-env env)) rez)]
+    (* master (pan2 tb303 position))))
 
 ;; 909 kick clone
 ;; http://www.nireaktor.com/reaktor-tutorials/how-to-make-a-909-kick-in-reaktor/
@@ -166,7 +177,6 @@
  (let [trig (in:kr sequence-bus)
        noize (+ (square freq) (square (* 1.342 freq)) (square (* 1.2313 freq)) (square (* 1.6532 freq)) (square (* 1.9523 freq)) (square (* 2.1523 freq)))]
   (* master (* (decay trig dly) (hpf noize hi-cutoff)))))
-
 
 ;; start up the timer synths
 (comment
@@ -191,31 +201,35 @@
 
 ;; change tempo
 ;(ctl r-trg :rate 220)
+
+;; create the instruments
 ;(kick-909 :sequence-bus sequence-bus-1)
 ;(snare    :sequence-bus sequence-bus-2)
 ;(hat :sequence-bus sequence-bus-3)
 ;(ping-it  :sequence-bus sequence-bus-4 :note-bus note-bus-4)
 ;(tb-303  :sequence-bus sequence-bus-5 :note-bus note-bus-3)
-;(sin-it  :sequence-bus sequence-bus-6 :note-bus note-bus-4)
+;(sin-it  :sequence-bus sequence-bus-6 :note-bus note-bus-2)
 
-;(stop)
+; factory defaults
 (comment
 (ctl kick-909 :master 1.0) 
+(ctl snare :master 1.0)
 (ctl kick-909 :master 1.0) 
 (ctl kick-909 :noise-amp 0.15) 
 (ctl kick-909 :noise-decay 0.5) 
 (ctl kick-909 :freq 60) 
 (ctl kick-909 :rez 0.1) 
-(ctl snare :master 0.0)
 (ctl snare :tone-amp 1.0)
 (ctl snare :freq 880)
-(ctl snare :noise-amp 0.2)
-(ctl snare :noize-decay 0.5)
-(ctl ping-it :release 1.8)
-(ctl ping-it :cutoff 1000)
-(ctl ping-it :rez 0.25)
+(ctl snare :noise-amp 0.5)
+(ctl snare :noize-decay 0.3)
+(ctl ping-it :release 0.8)
+(ctl ping-it :cutoff 200)
+(ctl ping-it :rez 0.5)
+(ctl tb-303 :master 0.6)
+(ctl tb-303 :cutoff 300)
+(ctl tb-303 :rez 0.1)
 )
-
 
 ;; start an osc server on port 44100
 ;(def server (osc-server 44100 "osc-clj-meetup"))
@@ -231,17 +245,11 @@
                       (buffer-write! buf id [(int (first (:args msg)))])))
 
 
-(comment
-(osc-handle server "/2/multitoggle/1/1" (fn [msg] (buffer-write! buf-0 0 [(int (first (:args msg)))])))
-(osc-handle server "/2/multitoggle/1/2" (fn [msg] (buffer-write! buf-0 1 [(int (first (:args msg)))])))
-(osc-handle server "/2/multitoggle/1/3" (fn [msg] (buffer-write! buf-0 2 [(int (first (:args msg)))])))
-(osc-handle server "/2/multitoggle/1/4" (fn [msg] (buffer-write! buf-0 3 [(int (first (:args msg)))])))
-)
 ; map to touchosc beat machine tab two
 ; map the kicks
 (comment
 (do
-(map #(osc-handle server (str "/2/multitoggle/1/"(+ %1 1)) (myfx buf-0 %1)) (range 4 16)) 
+(map #(osc-handle server (str "/2/multitoggle/1/"(+ %1 1)) (myfx buf-0 %1)) (range 0 16)) 
 ; map the snares
 (map #(osc-handle server (str "/2/multitoggle/2/"(+ %1 1)) (myfx buf-2 %1)) (range 0 16)) 
 ; map the hats 
@@ -254,7 +262,6 @@
 (map #(osc-handle server (str "/2/multitoggle/6/"(+ %1 1)) (myfx buf-10 %1)) (range 0 16)) 
 
 ;; set up 303 sliders
-  ;(stop);
 (defn myfx-scale [buf id] (fn [msg] (buffer-write! buf id [(scale-range (int (first (:args msg))) 0 1 110 880)])))
 (map #(osc-handle server (str "/2/multifader/" (+ %1 1)) (myfx-scale buf-5 %1)) (range 0 16))
 ))
