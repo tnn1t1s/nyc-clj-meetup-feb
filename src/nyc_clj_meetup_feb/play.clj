@@ -1,7 +1,9 @@
 (ns nyc-clj-meetup-feb.play
-  (:use overtone.live))
+  (:use 
+    [overtone.live]
+    [nyc-clj-meetup-feb.touchosc]))
 
-(stop)
+
 ;; casio tone for the painfully alone
 
 ;; this example shows we can extend the simple trigger sequencer
@@ -9,7 +11,7 @@
 ;; polypohonic sequencer synthesizer beat box type thing.
 
 ;; it's all built inside the supercollider server and controlled via the client.
-;; so in practice, later, we could all connect to the server adn control the 
+;; so in practice, later, we could all connect to the server and control the 
 ;; synth via touchosc.
 
 ;; first, we need a data structure to hold our patterns
@@ -22,13 +24,15 @@
 (defonce buf-0 (buffer 16))
 (defonce buf-1 (buffer 16))
 (buffer-write! buf-0 [1 0 0 0 1 0 0 0 1 0 0 0 1 0 0 0])
-(buffer-write! buf-0 (repeatedly 16 #(choose [0 0])))
+(buffer-write! buf-0 [1 1 0 0 1 0 0 0 1 0 0 0 1 0 0 0])
+;(buffer-write! buf-0 (repeatedly 16 #(choose [0 1])))
 (buffer-write! buf-1 (repeatedly 16 #(choose [110 220 440 660 880])))
 
 ; snares 
 (defonce buf-2 (buffer 16))
 (defonce buf-3 (buffer 16))
 (buffer-write! buf-2 [0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0])
+(buffer-write! buf-2 (repeatedly 16 #(choose [0 1])))
 (buffer-write! buf-3 (repeatedly 16 #(choose [110 220 440 660 880])))
 
 ; lead 
@@ -54,6 +58,10 @@
 (defonce buf-11 (buffer 16))
 (buffer-write! buf-10 (repeatedly 16 #(choose [0 1])))
 
+;; buffer utilities
+; clear all 
+; clear all
+;(map #(buffer-write! %1 (repeatedly 16 (fn [] 0))) [buf-0 buf-2 buf-4 buf-6 buf-8 buf-10])
 
 ;; timing bus setup
 ;; these are like the 'patch cables' that we saw in the ms20
@@ -111,19 +119,20 @@
   (out out-bus bar-trg)))
  
 ;; this is a basic saw synth; it takes sequence and note inputs
-(definst ping-it [sequence-bus 0 note-bus 0 release 0.1 cutoff 440 rez 1.0]
+(definst ping-it [sequence-bus 0 note-bus 0 master 0.5 release 0.1 cutoff 880 rez 0.5]
  (let [trig (in:kr sequence-bus)
        note (in:kr note-bus)
        src (rlpf (saw note) cutoff rez)]
-  (* (decay trig release) src)))
+  (* master (* (decay trig release) src))))
 
-;; this is a sin synth. refactoring the sequence input bus makes it much easier to 
+;; this is a square synth. refactoring the sequence input bus makes it much easier to 
 ;; define and route multiples. 
-(definst sin-it [sequence-bus 0 note-bus 0 release 0.1]
+(definst square-it [sequence-bus 0 note-bus 0 master 0.5 release 0.1 cutoff-high 1760]
  (let [trig (in:kr sequence-bus)
        note (in:kr note-bus)
-       src (sin-osc note)]
-  (* (decay trig release) src)))
+       src (hpf (square note) cutoff-high)]
+  (* master (* (decay trig release) src))))
+
 
 ;; bass synth
 ;; https://github.com/overtone/overtone/blob/master/src/overtone/synth/retro.clj
@@ -158,18 +167,18 @@
 
 ;; 909 kick clone
 ;; http://www.nireaktor.com/reaktor-tutorials/how-to-make-a-909-kick-in-reaktor/
-(definst kick-909 [sequence-bus 0 master 1.0 freq 60 noise-amp 0.2 noize-decay 0.1 tone-decay 0.3 rez 0.1]
+(definst kick-909 [sequence-bus 0 master 1.0 freq 55 noise-amp 0.2 noize-decay 0.1 tone-decay 0.2 rez 0.1]
  (let [trig (in:kr sequence-bus)
-       noize (* (decay trig noize-decay) (white-noise))
+       noize (* (decay trig noize-decay) (hpf (white-noise) 800))
        tone (* (decay trig tone-decay) (rlpf (saw freq) freq rez))]
   (* master (+ (* noise-amp noize) tone))))
 
 ;; a snare
-(definst snare [sequence-bus 0 master 1.0 freq 110 noise-amp 0.5 noize-decay 0.1 tone-amp 0.1 tone-decay 0.3 rez 0.1]
+(definst snare [sequence-bus 0 master 1.0 freq 110 band-freq 3520 noise-amp 0.5 noize-decay 0.1 tone-amp 0.1 tone-decay 0.3 rez 0.1]
  (let [trig (in:kr sequence-bus)
        noize (* (decay trig noize-decay) (white-noise))
        tone (* (decay trig tone-decay) (rlpf (saw freq) freq rez))]
-  (* master (+ (* noise-amp noize) (* tone-amp tone)))))
+  (* master (bpf (+ (* noise-amp noize) (* tone-amp tone)) band-freq))))
 
 ;; hats
 ;; 1, 1.3420, 1.2312, 1.6532, 1.9523, 2.1523
@@ -198,70 +207,59 @@
 (def trigger-seq-6 (trigger-sequencer buf-10 sequence-bus-6))
 )
 )
-
+;(stop)
 ;; change tempo
 ;(ctl r-trg :rate 220)
-
 ;; create the instruments
-;(kick-909 :sequence-bus sequence-bus-1)
-;(snare    :sequence-bus sequence-bus-2)
-;(hat :sequence-bus sequence-bus-3)
-;(ping-it  :sequence-bus sequence-bus-4 :note-bus note-bus-4)
-;(tb-303  :sequence-bus sequence-bus-5 :note-bus note-bus-3)
-;(sin-it  :sequence-bus sequence-bus-6 :note-bus note-bus-2)
+(comment
+(do
+  (kick-909 :sequence-bus sequence-bus-1)
+  (snare    :sequence-bus sequence-bus-2)
+  (hat :sequence-bus sequence-bus-3)
+  (ping-it  :sequence-bus sequence-bus-4 :note-bus note-bus-4)
+  (tb-303  :sequence-bus sequence-bus-5 :note-bus note-bus-3 :master 0.7)
+  (square-it  :sequence-bus sequence-bus-6 :note-bus note-bus-2))
+)
+
 
 ; factory defaults
 (comment
-(ctl kick-909 :master 1.0) 
+(ctl kick-909 :master 0.0) 
 (ctl snare :master 1.0)
 (ctl kick-909 :master 1.0) 
-(ctl kick-909 :noise-amp 0.15) 
-(ctl kick-909 :noise-decay 0.5) 
-(ctl kick-909 :freq 60) 
-(ctl kick-909 :rez 0.1) 
-(ctl snare :tone-amp 1.0)
-(ctl snare :freq 880)
-(ctl snare :noise-amp 0.5)
-(ctl snare :noize-decay 0.3)
-(ctl ping-it :release 0.8)
-(ctl ping-it :cutoff 200)
-(ctl ping-it :rez 0.5)
-(ctl tb-303 :master 0.6)
+(ctl kick-909 :noise-amp 0.05) 
+(ctl kick-909 :noise-decay 0.01) 
+(ctl kick-909 :tone-decay 0.2) 
+(ctl kick-909 :freq 55)
+(ctl kick-909 :rez 0.05) 
+(ctl snare :tone-amp 0.0)
+(ctl snare :freq 1760)
+(ctl snare :band-freq 1760)
+(ctl snare :noise-amp 0.1)
+(ctl snare :noize-decay 0.5)
+(ctl ping-it :release 2.0)
+(ctl ping-it :cutoff 1200)
+(ctl ping-it :rez 0.1)
+(ctl square-it :release 0.9)
+(ctl tb-303 :master 0.4)
 (ctl tb-303 :cutoff 300)
-(ctl tb-303 :rez 0.1)
+(ctl tb-303 :sus 0.1)
+(ctl tb-303 :rez 0.2)
+(ctl hat :master 1.5)
 )
 
-;; start an osc server on port 44100
-;(def server (osc-server 44100 "osc-clj-meetup"))
-;(zero-conf-on)
-
-;(osc-listen server (fn [msg] (println msg)) :debug)
-;(osc-rm-listener server :debug)
-;(osc-close server)
-
+; touchosc setup
 
 ; myfx returns a function that write index id into buf 
 (defn myfx [buf id] (fn [msg] 
                       (buffer-write! buf id [(int (first (:args msg)))])))
 
-
-; map to touchosc beat machine tab two
-; map the kicks
-(comment
 (do
-(map #(osc-handle server (str "/2/multitoggle/1/"(+ %1 1)) (myfx buf-0 %1)) (range 0 16)) 
-; map the snares
-(map #(osc-handle server (str "/2/multitoggle/2/"(+ %1 1)) (myfx buf-2 %1)) (range 0 16)) 
-; map the hats 
-(map #(osc-handle server (str "/2/multitoggle/3/"(+ %1 1)) (myfx buf-4 %1)) (range 0 16)) 
-; map the ping
-(map #(osc-handle server (str "/2/multitoggle/4/"(+ %1 1)) (myfx buf-6 %1)) (range 0 16)) 
-; map inst-1
-(map #(osc-handle server (str "/2/multitoggle/5/"(+ %1 1)) (myfx buf-8 %1)) (range 0 16)) 
-; map inst-2
-(map #(osc-handle server (str "/2/multitoggle/6/"(+ %1 1)) (myfx buf-10 %1)) (range 0 16)) 
-
-;; set up 303 sliders
-(defn myfx-scale [buf id] (fn [msg] (buffer-write! buf id [(scale-range (int (first (:args msg))) 0 1 110 880)])))
-(map #(osc-handle server (str "/2/multifader/" (+ %1 1)) (myfx-scale buf-5 %1)) (range 0 16))
-))
+  (map #(osc-handle server (str "/2/multitoggle/1/"(+ %1 1)) (myfx buf-0 %1)) (range 0 16)) 
+  (map #(osc-handle server (str "/2/multitoggle/2/"(+ %1 1)) (myfx buf-2 %1)) (range 0 16))
+  (map #(osc-handle server (str "/2/multitoggle/3/"(+ %1 1)) (myfx buf-4 %1)) (range 0 16))
+  (map #(osc-handle server (str "/2/multitoggle/4/"(+ %1 1)) (myfx buf-6 %1)) (range 0 16))
+  (map #(osc-handle server (str "/2/multitoggle/5/"(+ %1 1)) (myfx buf-8 %1)) (range 0 16))
+  (map #(osc-handle server (str "/2/multitoggle/6/"(+ %1 1)) (myfx buf-10 %1)) (range 0 16))
+  (defn myfx-scale [buf id] (fn [msg] (buffer-write! buf id [(scale-range (int (first (:args msg))) 0 1 110 880)])))
+  (map #(osc-handle server (str "/2/multifader/" (+ %1 1)) (myfx-scale buf-5 %1)) (range 0 16)))
