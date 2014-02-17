@@ -1,13 +1,11 @@
 # nyc-clj-meetup-feb
 
-A Clojure library designed to ... well, that part is up to you.
+code used in my nyc-clj-meetup-feb talk.
 
 ## Usage
 
-FIXME
+start with subtract.clj, then ms20.clj, then play.clj
 
 ## License
 
-Copyright © 2014 FIXME
-
-Distributed under the Eclipse Public License, the same as Clojure.
+Copyright © 2014 DJP
